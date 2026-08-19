@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/aliawilkinson/.github/compare/v1.1.0...v1.2.0) (2026-08-19)
+
+
+### Features
+
+* add project workflow bootstrap script ([#4](https://github.com/aliawilkinson/.github/issues/4)) ([3d6ea4b](https://github.com/aliawilkinson/.github/commit/3d6ea4b3793da1c0d743ee2ed0ce6ad296e4f186))
+
 ## [1.1.0](https://github.com/aliawilkinson/.github/compare/v1.0.0...v1.1.0) (2026-08-19)
 
 
