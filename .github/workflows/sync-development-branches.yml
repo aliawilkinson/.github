@@ -12,7 +12,7 @@ on:
         description: Comma-separated prefixes for development branches
         required: false
         type: string
-        default: claude/,codex/,dev/,feature/,fix/
+        default: agent/,claude/,codex/,dev/,feature/,fix/
     secrets:
       SYNC_BRANCH_TOKEN:
         description: Optional token whose PRs should trigger other workflows

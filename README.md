@@ -35,7 +35,7 @@ jobs:
     uses: aliawilkinson/.github/.github/workflows/sync-development-branches.yml@v1
     with:
       base_branch: main
-      branch_prefixes: claude/,codex/,dev/,feature/,fix/
+      branch_prefixes: agent/,claude/,codex/,dev/,feature/,fix/
     secrets: inherit
 ```
 
@@ -57,7 +57,7 @@ jobs:
     secrets: inherit
 ```
 
-The workflow exposes `release_created`, `tag_name`, `version`, `sha`, and `release_url`. A caller can build and deploy only when `release_created == 'true'`.
+The workflow exposes `release_created`, `tag_name`, `version`, `major`, `sha`, and `release_url`. A caller can build and deploy only when `release_created == 'true'`.
 
 ### `publish-release-assets.yml`
 
@@ -74,7 +74,7 @@ Use Conventional Commit prefixes in commits or squash-merge PR titles:
 - `feat!:` or a `BREAKING CHANGE:` footer creates a major candidate.
 - `chore:`, `docs:`, and similar maintenance types do not create a release by themselves.
 
-Projects reference the stable major tag (`@v1`). Changes to reusable workflows are reviewed through pull requests. After a compatible update is merged, move the `v1` tag to the reviewed commit; breaking workflow interfaces receive a new major tag.
+Projects reference the stable major tag (`@v1`). Changes to reusable workflows are reviewed through pull requests. Compatible releases automatically advance the `v1` tag to the newly reviewed release commit; breaking workflow interfaces receive a new major tag.
 
 ## Token behavior
 
