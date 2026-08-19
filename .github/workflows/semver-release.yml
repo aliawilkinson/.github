@@ -32,6 +32,9 @@ on:
       version:
         description: Created SemVer version without the v prefix
         value: ${{ jobs.release.outputs.version }}
+      major:
+        description: Created SemVer major version
+        value: ${{ jobs.release.outputs.major }}
       sha:
         description: Commit SHA referenced by the release tag
         value: ${{ jobs.release.outputs.sha }}
@@ -51,6 +54,7 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
+      major: ${{ steps.release.outputs.major }}
       sha: ${{ steps.release.outputs.sha }}
       release_url: ${{ steps.release.outputs.html_url }}
     steps:

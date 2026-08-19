@@ -1,0 +1,45 @@
+name: Release shared workflows
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/semver-release.yml
+    with:
+      target_branch: main
+    secrets: inherit
+
+  update-major-tag:
+    if: needs.release.outputs.release_created == 'true'
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Advance stable major tag
+        env:
+          RELEASE_MAJOR: ${{ needs.release.outputs.major }}
+          RELEASE_SHA: ${{ needs.release.outputs.sha }}
+        run: |
+          if [[ ! "$RELEASE_MAJOR" =~ ^[0-9]+$ ]]; then
+            echo "Invalid release major: $RELEASE_MAJOR" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "v${RELEASE_MAJOR}" "$RELEASE_SHA" -m "Reusable workflows v${RELEASE_MAJOR}"
+          git push origin "refs/tags/v${RELEASE_MAJOR}" --force
