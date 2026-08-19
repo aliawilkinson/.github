@@ -1,0 +1,63 @@
+name: Publish release assets
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Actions artifact produced by an earlier caller job
+        required: true
+        type: string
+      tag_name:
+        description: Existing SemVer GitHub Release tag
+        required: true
+        type: string
+      attest:
+        description: Generate GitHub artifact provenance before publication
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected a SemVer tag beginning with v; received: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Download built assets
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: release-assets
+
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: |
+          find . -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 shasum -a 256 > SHA256SUMS
+
+      - name: Attest build provenance
+        if: ${{ inputs.attest }}
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release-assets/**
+
+      - name: Attach assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag_name }}
+        run: |
+          find release-assets -type f -print0 \
+            | xargs -0 gh release upload "$RELEASE_TAG" --clobber

@@ -1,0 +1,154 @@
+name: Sync active development branches
+
+on:
+  workflow_call:
+    inputs:
+      base_branch:
+        description: Trunk branch that development branches should receive
+        required: false
+        type: string
+        default: main
+      branch_prefixes:
+        description: Comma-separated prefixes for development branches
+        required: false
+        type: string
+        default: claude/,codex/,dev/,feature/,fix/
+    secrets:
+      SYNC_BRANCH_TOKEN:
+        description: Optional token whose PRs should trigger other workflows
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-sync-prs:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sync-${{ github.repository }}-${{ inputs.base_branch }}
+      cancel-in-progress: false
+    steps:
+      - name: Open or refresh sync pull requests
+        uses: actions/github-script@v8
+        env:
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          DEVELOPMENT_BRANCH_PREFIXES: ${{ inputs.branch_prefixes }}
+        with:
+          github-token: ${{ secrets.SYNC_BRANCH_TOKEN || github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sourceBranch = process.env.BASE_BRANCH;
+            const prefixes = process.env.DEVELOPMENT_BRANCH_PREFIXES
+              .split(",")
+              .map((prefix) => prefix.trim())
+              .filter(Boolean);
+
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              base: sourceBranch,
+              per_page: 100,
+            });
+
+            const targets = pulls
+              .filter((pull) => pull.head.repo?.full_name === `${owner}/${repo}`)
+              .map((pull) => ({ name: pull.head.ref, sha: pull.head.sha }))
+              .filter((branch) => prefixes.some((prefix) => branch.name.startsWith(prefix)))
+              .filter((branch) => !branch.name.startsWith("sync/"));
+
+            if (targets.length === 0) {
+              core.summary.addRaw("No open development PRs matched the configured prefixes.\n");
+              await core.summary.write();
+              return;
+            }
+
+            for (const target of targets) {
+              const targetBranch = target.name;
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner,
+                repo,
+                basehead: `${targetBranch}...${sourceBranch}`,
+              });
+
+              if (comparison.data.ahead_by === 0) {
+                core.info(`${targetBranch} already contains ${sourceBranch}`);
+                continue;
+              }
+
+              const slug = targetBranch.replace(/[^A-Za-z0-9._-]+/g, "-");
+              const syncBranch = `sync/${sourceBranch}-into-${slug}`;
+              const syncRef = `heads/${syncBranch}`;
+
+              try {
+                await github.rest.git.getRef({ owner, repo, ref: syncRef });
+                await github.rest.git.updateRef({
+                  owner,
+                  repo,
+                  ref: syncRef,
+                  sha: target.sha,
+                  force: true,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.git.createRef({
+                  owner,
+                  repo,
+                  ref: `refs/${syncRef}`,
+                  sha: target.sha,
+                });
+              }
+
+              try {
+                await github.rest.repos.merge({
+                  owner,
+                  repo,
+                  base: syncBranch,
+                  head: sourceBranch,
+                  commit_message: `Merge ${sourceBranch} into ${targetBranch}`,
+                });
+              } catch (error) {
+                if (error.status !== 409) throw error;
+                core.warning(`${sourceBranch} conflicts with ${targetBranch}; no sync PR was opened.`);
+                await github.rest.git.deleteRef({ owner, repo, ref: syncRef });
+                core.summary.addRaw(`- Conflict: \`${targetBranch}\` must be synced manually.\n`);
+                continue;
+              }
+
+              const existing = await github.rest.pulls.list({
+                owner,
+                repo,
+                state: "open",
+                head: `${owner}:${syncBranch}`,
+                base: targetBranch,
+                per_page: 1,
+              });
+
+              if (existing.data.length > 0) {
+                core.info(`Refreshed ${existing.data[0].html_url}`);
+                core.summary.addRaw(`- Refreshed ${existing.data[0].html_url}\n`);
+                continue;
+              }
+
+              const pull = await github.rest.pulls.create({
+                owner,
+                repo,
+                head: syncBranch,
+                base: targetBranch,
+                title: `chore: sync ${sourceBranch} into ${targetBranch}`,
+                body: [
+                  `\`${sourceBranch}\` changed after this development branch was created.`,
+                  "",
+                  `This PR proposes merging the latest \`${sourceBranch}\` into \`${targetBranch}\` without changing the development branch directly.`,
+                  "",
+                  "Created automatically by the shared development-branch sync workflow.",
+                ].join("\n"),
+              });
+
+              core.info(`Opened ${pull.data.html_url}`);
+              core.summary.addRaw(`- Opened ${pull.data.html_url}\n`);
+            }
+
+            await core.summary.write();
