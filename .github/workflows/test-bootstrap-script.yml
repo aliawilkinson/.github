@@ -1,0 +1,34 @@
+name: Test project bootstrap script
+
+on:
+  pull_request:
+    paths:
+      - scripts/bootstrap-project.sh
+      - scripts/test-bootstrap-project.sh
+      - .github/workflows/test-bootstrap-script.yml
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/bootstrap-project.sh
+      - scripts/test-bootstrap-project.sh
+      - .github/workflows/test-bootstrap-script.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Check shell syntax
+        run: |
+          bash -n scripts/bootstrap-project.sh
+          bash -n scripts/test-bootstrap-project.sh
+
+      - name: Run integration fixtures
+        run: scripts/test-bootstrap-project.sh

@@ -12,6 +12,37 @@ This repository contains reusable GitHub Actions workflows and repository defaul
 - Artifact jobs build from the tagged commit, add SHA-256 checksums and provenance, and attach the exact outputs to the GitHub Release.
 - Deployment stays project-specific and consumes the release job's immutable tag or SHA.
 
+## Bootstrap a project
+
+From the root of a Git repository with an initial commit:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aliawilkinson/.github/v1/scripts/bootstrap-project.sh \
+  | bash -s -- --configure-github
+```
+
+For a local checkout of this repository:
+
+```bash
+./scripts/bootstrap-project.sh --directory /path/to/project --configure-github
+```
+
+The script infers common Release Please project types, detects the current version where possible, writes the two thin workflow callers and Release Please configuration, and optionally enables the GitHub repository permission required for Actions-created PRs. It refuses to replace differing files unless `--force` is supplied and supports `--dry-run`.
+
+Run `bootstrap-project.sh --help` for overrides such as `--release-type`, `--version`, `--base-branch`, and `--shared-ref`. The script deliberately does not commit, push, or merge. It generates build and deployment jobs only when you explicitly provide repository-owned scripts.
+
+To scaffold artifact publication and deployment too, first add repository-owned scripts and pass their paths explicitly:
+
+```bash
+./scripts/bootstrap-project.sh \
+  --build-script scripts/build-release.sh \
+  --artifact-path 'dist/*' \
+  --deploy-script scripts/deploy-release.sh \
+  --configure-github
+```
+
+The generated jobs receive `RELEASE_TAG`, `RELEASE_VERSION`, and `RELEASE_SHA`. Artifact publication adds checksums and provenance. Deployment uses the protected `production` GitHub environment by default; change it with `--environment`.
+
 ## Reusable workflows
 
 ### `sync-development-branches.yml`
